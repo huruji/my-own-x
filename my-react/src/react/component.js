@@ -1,3 +1,4 @@
+import { renderComponent } from '../react-dom/render'
 
 class Component {
     constructor(props = {}) {

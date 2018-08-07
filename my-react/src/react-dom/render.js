@@ -18,7 +18,7 @@ function createComponent(component, props) {
 
 function unmountComponent(component) {
     if(component.componentWillUnmount) component.componentWillUnmount();
-
+    removeNode(component.base);
 }
 
 

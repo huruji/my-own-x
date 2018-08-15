@@ -1,7 +1,19 @@
 import {setAttribute} from './dom'
+import Component from '../react/component';
 
-function diff(dom, vnode){
+export function diff(dom, vnode, container){
+   const ret = diffNode(dom, vnode);
+   if(container && ret.parentNode !== container) {
+       container.appendChild(ret);
+   }
+   return ret;
+}
+
+function diffNode(dom, vnode) {
     let out = dom;
+    if(vnode === undefined || vnode === null || typeof vnode === 'boolean') vnode = '';
+    if(typeof vnode === 'number') vnode = String(vnode);
+
     if(typeof vnode === 'string') {
         if(dom && dom.nodeType === 3) {
             if(dom.textContent !== vnode) {
@@ -16,33 +28,27 @@ function diff(dom, vnode){
         return out;
     }
 
-    if(!dom || dom.nodeName.toLowerCase() !== vnode.tag.toLowerCase()) {
+    if(typeof vnode.tag === 'function') {
+        return diffComponent(dom, vnode);
+    }
+
+    if(!dom || !isSameNodeType(dom, vnode)) {
         out = document.createElement(vnode.tag);
         if(dom) {
-            [...dom.childNode].map(out.appendChild);
+            [...dom.childNodes].map(out.appendChild);
 
             if(dom.parentNode) {
                 dom.parentNode.replaceChild(out, dom);
             }
         }
     }
-}
 
-
-function diffAttributes(dom, vnode) {
-    const old = {};
-    const attrs = vnode.attrs;
-
-    for(let i = 0; i < dom.attributes.length; i++) {
-        const attr = dom.attributes[i];
-        old[attr.name] = attr.value;
+    if(vnode.children && vnode.children.length > 0 || (out.childNodes && out.childNodes.length > 0)) {
+        diffChildren(out, vnode.children);
     }
 
-    for(let name in old) {
-        if(!(name in attrs)) {
-            setAttribute(dom, name, undefined)
-        }
-    }
+    diffAttributes(out, vnode);
+    return out;
 }
 
 function diffChildren(dom, vchildren) {
@@ -56,7 +62,7 @@ function diffChildren(dom, vchildren) {
             if(key) {
                 keyed[key] = child;
             } else {
-                children.push(child)
+                children.push(child);
             }
         }
     }
@@ -87,7 +93,7 @@ function diffChildren(dom, vchildren) {
                     }
                 }
             }
-            child = diff(child, vchild);
+            child = diffNode(child, vchild);
 
             const f = domChildren[i];
             if(child && child !== dom && child !== f) {
@@ -103,23 +109,6 @@ function diffChildren(dom, vchildren) {
     }
 }
 
-
-function isSameNodeType(dom, vnode) {
-    if(typeof vnode === 'string' || typeof vnode === 'number') {
-        return dom.nodeType === 3;
-    }
-    if(typeof vnode.tag === 'string') {
-        return dom.nodeName.toLowerCase() === vnode.tag.toLowerCase();
-    }
-
-    return dom && dom._component && dom._component.constructor === vnode.tag;
-}
-
-function removeNode(dom) {
-    if(dom && dom.parentNode) {
-        dom.parentNode.removeChild(dom);
-    }
-}
 
 function diffComponent(dom, vnode) {
     let c = dom && dom_component;
@@ -142,4 +131,99 @@ function diffComponent(dom, vnode) {
         }
     }
     return dom;
+}
+
+function setComponentProps(component, props) {
+    if(!component.base) {
+        if(component.componentWillMount) component.componentWillMount();
+    } else if(component.componentWillReceiveProps) {
+        component.componentWillReceiveProps();
+    }
+
+    component.props = props;
+
+    renderComponent(component);
+}
+
+export function renderComponent(component) {
+    let base;
+    const renderer = component.render();
+    if(component.base && component.componentWillUpdate) {
+        component.componentWillUpdate();
+    }
+    base = diffNode(component.base, renderer);
+
+    component.base = base;
+    base._component = component;
+
+    if(component.base) {
+        if(component.componentDidUpdate) component.componentDidUpdate();
+    } else if(component.componentDidMount) {
+        component.componentDidMount();
+    }
+
+    component.base = base;
+    base._component = component;
+}
+
+function createComponent(component, props) {
+    let inst;
+
+    if(component.prototype && component.prototype.render) {
+        inst = new component(props);
+    } else {
+        inst = new Component(props);
+        inst.constructor = component;
+        inst.render = function() {
+            return this.constructor(props);
+        }
+    }
+
+    return inst;
+}
+
+function unmountComponent(component) {
+    if(component.componentWillUnmount) component.componentWillUnmount();
+    removeNode(component.base)
+}
+
+
+
+function isSameNodeType(dom, vnode) {
+    if(typeof vnode === 'string' || typeof vnode === 'number') {
+        return dom.nodeType === 3;
+    }
+    if(typeof vnode.tag === 'string') {
+        return dom.nodeName.toLowerCase() === vnode.tag.toLowerCase();
+    }
+
+    return dom && dom._component && dom._component.constructor === vnode.tag;
+}
+
+
+function diffAttributes(dom, vnode) {
+    const old = {};
+    const attrs = vnode.attrs;
+
+    for(let i = 0; i < dom.attributes.length; i++) {
+        const attr = dom.attributes[i];
+        old[attr.name] = attr.value;
+    }
+
+    for(let name in old) {
+        if(!(name in attrs)) {
+            setAttribute(dom, name, undefined)
+        }
+    }
+
+    for(let name in attrs) {
+        if(old[name] !== attrs[name]) {
+            setAttribute(dom, name, attrs[name]);
+        }
+    }
+}
+function removeNode(dom) {
+    if(dom && dom.parentNode) {
+        dom.parentNode.removeChild(dom);
+    }
 }

@@ -1,5 +1,4 @@
-import Component from '../react/component'
-import {setAttribute} from './dom'
+import {diff} from './diff'
 
 
 function createComponent(component, props) {
@@ -86,6 +85,6 @@ function _render(vnode) {
     return dom;
 }
 
-export function render(vnode, container) {
-    return container.appendChild(_render(vnode));
+export function render(vnode, container, dom) {
+    return diff(dom, vnode, container);
 }

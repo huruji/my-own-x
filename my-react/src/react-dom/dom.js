@@ -16,6 +16,10 @@ export function setAttribute(dom, name, value = "") {
         if(name in dom) {
             dom[name] = value || '';
         } 
-        dom.setAttribute(name, value);
+        if(value) {
+            dom.setAttribute(name, value);
+        } else {
+            dom.removeAttribute(name, value)
+        }
     }
 }
